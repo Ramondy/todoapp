@@ -20,7 +20,7 @@ class Todo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(), nullable=False)
     completed = db.Column(db.Boolean, nullable=False, default=False)
-    list_id = db.Column(db.Integer, db.ForeignKey('todolists.id'), nullable=True)
+    list_id = db.Column(db.Integer, db.ForeignKey('todolists.id'), nullable=False, default=1)
 
     # this method is useful for debugging
     def __repr__(self):
@@ -41,10 +41,48 @@ class TodoList(db.Model):
 # handle routes (C)
 @app.route('/')
 def index():
-    return render_template('index.html', data=Todo.query.order_by('id').all())  # data is dynamically retrieved from db
+    return redirect(url_for('get_todos_by_list', list_id=1))
 
-@app.route('/todos/create', methods=['POST'])
-def create_todo():
+@app.route('/lists/<list_id>')
+def get_todos_by_list(list_id):
+    return render_template('index.html',
+                           active_list=TodoList.query.get(list_id),
+                           todolists=TodoList.query.order_by('id').all(),
+                           todos=Todo.query.filter_by(list_id=list_id).order_by('id').all())  # data is dynamically retrieved from db
+
+@app.route('/lists/create', methods=['POST'])
+def create_todolist():
+    error = False
+    body = {}
+    try:
+        # ASYNCHRONOUS
+        name = request.get_json()['name']
+
+        new_todo_list = TodoList(name=name)
+
+        # persist in db
+        db.session.add(new_todo_list)
+        db.session.commit()
+        body['name'] = new_todo_list.name
+
+    except:
+        error = True
+        db.session.rollback()
+        print(sys.exc_info())
+
+    finally:
+        db.session.close()
+
+    if error:
+        abort(400)
+
+    else:
+        # ASYNCHRONOUS
+        return jsonify(body)
+
+
+@app.route('/todos/create/<list_id>', methods=['POST'])
+def create_todo(list_id):
     error = False
     body = {}
     try:
@@ -54,7 +92,7 @@ def create_todo():
         # ASYNCHRONOUS
         description = request.get_json()['description']
 
-        new_todo_item = Todo(description=description)
+        new_todo_item = Todo(description=description, list_id=list_id)
 
         # persist in db
         db.session.add(new_todo_item)

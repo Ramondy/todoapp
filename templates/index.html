@@ -33,30 +33,76 @@
 </head>
 <body>
 
-    <!-- use this for synchronous request: <form id="form" method="post" action="/todos/create">  (indicate method + name route) -->
-    <form id="form">
-        <label for="description">Create a To-Do Item</label> <br>  <!-- for attr binds the label to the input field -->
-        <input type="text" id="description" name="description" />  <!-- name attr is the key used by request.get -->
-        <input type="submit" id="submit" value="Create" /> <!-- value attr specifies text showing in button -->
-    </form>
-
     <div id="error" class="hidden">Something went wrong!</div>
 
-    <ul id="todos">
-        <!-- jinja loop -->
-        {% for d in data %}
-        <li>
-            <input class="check-completed" data-id="{{ d.id }}" type="checkbox" {% if d.completed %} checked {% endif %}>
-            {{ d.description }}
-            <button class="press-delete" data-id="{{ d.id }}" type="button">&cross;</button>
-        </li>
-        {% endfor %}
-    </ul>
+    <div class="lists-wrapper">
+        <h4>Your todo lists</h4>
+        <form id="form_lists">
+            <label for="description">Create List</label> <br>  <!-- for attr binds the label to the input field -->
+            <input type="text" id="name" name="name" />  <!-- name attr is the key used by request.get -->
+            <input type="submit" id="submit_new_list" value="Create" /> <!-- value attr specifies text showing in button -->
+        </form>
+        <ul id="todolists">
+            {% for list in todolists %}
+            <li>
+                <a href="/lists/{{ list.id }}"> {{ list.name }} </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="todos-wrapper">
+        <h4>Your todo items [list: {{ active_list.name }}]</h4>
+        <!-- use this for synchronous request: <form id="form" method="post" action="/todos/create">  (indicate method + name route) -->
+        <form id="form_todos">
+            <label for="description">Create Item</label> <br>  <!-- for attr binds the label to the input field -->
+            <input type="text" id="description" name="description" />  <!-- name attr is the key used by request.get -->
+            <input type="submit" id="submit_new_todo" value="Create" /> <!-- value attr specifies text showing in button -->
+        </form>
+
+        <ul id="todos">
+            <!-- jinja loop -->
+            {% for item in todos %}
+            <li>
+                <input class="check-completed" data-id="{{ item.id }}" type="checkbox" {% if item.completed %} checked {% endif %}>
+                {{ item.description }}
+                <button class="press-delete" data-id="{{ item.id }}" type="button">&cross;</button>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
 
     <script>
-        document.getElementById('form').onsubmit = function(e) {
+        document.getElementById('form_lists').onsubmit = function(e) {
             e.preventDefault();
-            fetch('/todos/create', {
+            fetch('/lists/create', {
+                method: 'POST',
+                body: JSON.stringify({
+                    'name': document.getElementById('name').value
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(function(response) {
+                return response.json()
+            })
+            .then(function(jsonResponse) {
+                console.log(jsonResponse);
+                window.location.href = '/';
+                document.getElementById('error').className = 'hidden';
+            })
+            .catch(function() {
+                document.getElementById('error').className = '';
+            })
+        }
+
+        document.getElementById('form_todos').onsubmit = function(e) {
+            e.preventDefault();
+            console.log('event', e);
+            const active_list = e.target.action.slice(-1,);
+            console.log('list#', active_list);
+            fetch('/todos/create/' + active_list, {
                 method: 'POST',
                 body: JSON.stringify({
                     'description': document.getElementById('description').value
@@ -70,7 +116,7 @@
             })
             .then(function(jsonResponse) {
                 console.log(jsonResponse);
-                window.location.href = '/';
+                window.location.href = '/lists/' + active_list;
                 //const new_li = document.createElement('LI');
                 //new_li.innerHTML = jsonResponse['description'];
                 //document.getElementById('todos').appendChild(new_li);
@@ -112,13 +158,14 @@
             deleteButton.onclick = function (e) {
                 console.log('event', e);
                 const todoId = e.target.dataset['id'];
+                const active_list = e.target.formAction.slice(-1,);
                 fetch('/todos/' + todoId, {
                     method: 'DELETE',
                 })
                     .then(function (jsonResponse) {
                         console.log(jsonResponse);
                         if (jsonResponse['status'] == 200) {
-                            window.location.href = '/';
+                            window.location.href = '/lists/' + active_list;
                         }
                         document.getElementById('error').className = 'hidden';
                     })
